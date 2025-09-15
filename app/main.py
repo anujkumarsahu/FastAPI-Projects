@@ -859,6 +859,7 @@ def delete_document_type(document_type_id: int, db: Session = Depends(get_db), u
     return {"detail": "Document Type deactivated"}
 
 class readEmployee(BaseModel):
+    id : int
     profile_picture : str = None
     name : str = None
     father_name : str = None
@@ -914,7 +915,6 @@ class readEmployee(BaseModel):
         orm_mode = True
         
 class createEmployee(readEmployee):
-    id : int
     profile_picture : str = None
     name : str
     father_name : str
