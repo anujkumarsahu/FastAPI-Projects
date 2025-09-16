@@ -1,5 +1,5 @@
 from .database import Base
-from sqlalchemy import Column, Integer, String, ForeignKey, Float, DateTime, Boolean, Date,text
+from sqlalchemy import Column, Integer, String, ForeignKey, Float, DateTime, Boolean, Date
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from sqlalchemy import event
@@ -241,12 +241,12 @@ class Employee(Base):
     def __str__(self):
         return self.name
 
-@event.listens_for(Employee, "after_insert")
-def generate_employee_code(mapper, connection, target):
-    if not target.employee_code and target.id:
-        employee_code = f"EMP-{target.id:06d}"
-        connection.execute(Employee.__table__.update().
-            where(Employee.id == target.id).values(employee_code=employee_code))
+# @event.listens_for(Employee, "after_insert")
+# def generate_employee_code(mapper, connection, target):
+#     if not target.employee_code and target.id:
+#         employee_code = f"EMP-{target.id:06d}"
+#         connection.execute(Employee.__table__.update().
+#             where(Employee.id == target.id).values(employee_code=employee_code))
 
 class EmployeeProfile(Base):
     __tablename__ = "employee_profiles"
@@ -362,3 +362,5 @@ class Education(Base):
 
     def __str__(self):
         return f'Education of {self.employee.name} at {self.institution_name}'
+
+

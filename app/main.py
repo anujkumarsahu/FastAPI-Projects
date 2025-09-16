@@ -914,7 +914,7 @@ class readEmployee(BaseModel):
     class Config:
         orm_mode = True
         
-class createEmployee(readEmployee):
+class createEmployee(BaseModel):
     profile_picture : str = None
     name : str
     father_name : str
@@ -1030,7 +1030,7 @@ def create_employee(employee: createEmployee, db: Session = Depends(get_db), use
         if existing_employee_phone:
             raise HTTPException(status_code=400, detail="Employee with this phone already exists")
     
-    db_employee = Employee(**employee.dict())
+    db_employee = Employee(**employee.model_dump())
     db.add(db_employee)
     db.commit()
     db.refresh(db_employee)
@@ -1049,7 +1049,7 @@ def partial_update_employee(employee_id: int, employee: updateEmployee, db: Sess
     if not db_employee:
         raise HTTPException(status_code=404, detail="Employee not found")
 
-    update_data = employee.dict(exclude_unset=True)
+    update_data = employee.model_dump(exclude_unset=True)
 
     # Check for duplicate email, phone or employee code (excluding current employee)
     if "email" in update_data:
@@ -1079,7 +1079,7 @@ def update_employee(employee_id: int, employee: updateEmployee, db: Session = De
     if not db_employee:
         raise HTTPException(status_code=404, detail="Employee not found")
 
-    update_data = employee.dict(exclude_unset=True)
+    update_data = employee.model_dump(exclude_unset=True)
 
     # Check for duplicate email, phone or employee code (excluding current employee)
     if "email" in update_data:
@@ -1115,3 +1115,272 @@ def deactivate_employee(employee_id: int, db: Session = Depends(get_db), user_em
 
 ######################################## Employee Profile CRUD Operations #####################################################
 
+class BaseEmployeeProfile(BaseModel):
+    employee_id: int
+    employee_type_id: int
+    branch_id: int
+    department_id: int
+    designation_id: int
+    grade_id: int
+    reporting_manager_id: int
+    work_location: str
+    shift_timing: str
+    effective_date: date
+
+class readEmployeeProfile(BaseEmployeeProfile):
+    id: int
+    class Config:
+        orm_mode = True
+
+class createEmployeeProfile(BaseEmployeeProfile):
+    class Config:
+        orm_mode = True
+
+class updateEmployeeProfile(BaseModel):
+    employee_id: Optional[int] = None
+    employee_type_id: Optional[int] = None
+    branch_id: Optional[int] = None
+    department_id: Optional[int] = None
+    designation_id: Optional[int] = None
+    grade_id: Optional[int] = None
+    reporting_manager_id: Optional[int] = None
+    work_location: Optional[str] = None
+    shift_timing: Optional[str] = None
+    effective_date: Optional[date] = None
+
+    class Config:
+        orm_mode = True
+
+@app.get("/employeeprofile", response_model=list[readEmployeeProfile])
+def read_employee_profile(db: Session = Depends(get_db), user_email: str = Depends(protected_route)):
+    employee_profiles = db.query(EmployeeProfile).filter(EmployeeProfile.is_active == True).all()
+    return employee_profiles
+
+@app.post("/employeeprofile", status_code=201, response_model=readEmployeeProfile)
+def create_employeeprofile(employee_profile: createEmployeeProfile, db: Session = Depends(get_db), user_email: str = Depends(protected_route)):
+    # Check for duplicate profile with same data
+    existing_employee_profile = db.query(EmployeeProfile).filter(
+        EmployeeProfile.employee_id == employee_profile.employee_id,
+        EmployeeProfile.employee_type_id == employee_profile.employee_type_id,
+        EmployeeProfile.branch_id == employee_profile.branch_id,
+        EmployeeProfile.department_id == employee_profile.department_id,
+        EmployeeProfile.designation_id == employee_profile.designation_id,
+        EmployeeProfile.grade_id == employee_profile.grade_id,
+        EmployeeProfile.reporting_manager_id == employee_profile.reporting_manager_id,
+        EmployeeProfile.work_location == employee_profile.work_location,
+        EmployeeProfile.shift_timing == employee_profile.shift_timing,
+        EmployeeProfile.is_active == True
+    ).first()
+    if existing_employee_profile:
+        raise HTTPException(status_code=400, detail="Employee profile with same data already exists.")
+
+    # Deactivate previous active profile for this employee (if any)
+    previous_active_profile = db.query(EmployeeProfile).filter(
+        EmployeeProfile.employee_id == employee_profile.employee_id,
+        EmployeeProfile.is_active == True
+    ).first()
+    if previous_active_profile:
+        previous_active_profile.is_active = False
+        db.commit()
+
+    db_employee_profile = EmployeeProfile(**employee_profile.model_dump())
+    db.add(db_employee_profile)
+    db.commit()
+    db.refresh(db_employee_profile)
+    return db_employee_profile
+
+@app.get("/employeeprofile/{profile_id}", response_model=readEmployeeProfile)
+def get_employee_profile(profile_id: int, db: Session = Depends(get_db), user_email: str = Depends(protected_route)):
+    db_profile = db.query(EmployeeProfile).filter(EmployeeProfile.id == profile_id).first()
+    if not db_profile:
+        raise HTTPException(status_code=404, detail="Employee profile not found")
+    return db_profile
+
+@app.patch("/employeeprofile/{profile_id}", response_model=readEmployeeProfile)
+def update_employee_profile_partial(profile_id: int, profile: updateEmployeeProfile, db: Session = Depends(get_db), user_email: str = Depends(protected_route)):
+    db_profile = db.query(EmployeeProfile).filter(EmployeeProfile.id == profile_id).first()
+    if not db_profile:
+        raise HTTPException(status_code=404, detail="Employee profile not found")
+    update_data = profile.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_profile, key, value)
+    db.commit()
+    db.refresh(db_profile)
+    return db_profile
+
+@app.delete("/employeeprofile/{profile_id}", status_code=204)
+def deactivate_employee_profile(profile_id: int, db: Session = Depends(get_db), user_email: str = Depends(protected_route)):
+    db_profile = db.query(EmployeeProfile).filter(EmployeeProfile.id == profile_id).first()
+    if not db_profile:
+        raise HTTPException(status_code=404, detail="Employee profile not found")
+    db_profile.is_active = False
+    db.commit()
+    return {"detail": "Employee profile deactivated"}
+
+########## employee bank detail 16-09-2025 ##########
+
+class baseBankDetail(BaseModel):
+    employee_id :int
+    bank_name:str
+    account_number:str
+    ifsc_code:str
+    branch_name:str
+    account_type: str
+    is_primary : bool
+    
+class readBankDetail(baseBankDetail):
+    id:int
+    
+    class Config:
+        orm_mode =True
+class createBankDetail(baseBankDetail):
+    pass
+
+    class Config:
+        orm_mode = True
+
+class updateBankDetail(BaseModel):
+    employee_id: Optional[int]=None
+    bank_name:Optional[str] =None
+    account_number: Optional[str]=None
+    ifsc_code: Optional[str] = None
+    branch_name: Optional[str]=None
+    account_type :Optional[str]= None
+    is_primary:Optional[bool] = None
+    
+    class Config:
+        orm_mode =True
+
+@app.get("/employeebankdetails", response_model=list[readBankDetail])
+def read_employee_bank_details(db: Session = Depends(get_db), user_email: str = Depends(protected_route)):
+    db_bank_details = db.query(BankDetail).filter(BankDetail.is_active == True).order_by(BankDetail.account_type.desc()).all()
+    return db_bank_details
+
+@app.get("/employeebankdetail/{bankdetail_id}", response_model=readBankDetail)
+def read_employee_bank_details(bankdetail_id: int, db: Session = Depends(get_db), user_email: str = Depends(protected_route)):
+    db_bank_details = db.query(BankDetail).filter(BankDetail.is_active == True, BankDetail.id == bankdetail_id).first()
+    return db_bank_details
+            
+    
+    
+@app.post("/employeebankdetail", status_code=201, response_model= readBankDetail)
+def create_employee_bank_detail(bank_detail : createBankDetail, db:Session=Depends(get_db), user_email:str=Depends(protected_route)):
+    ## check duplicate account
+    existing_bank = db.query(BankDetail).filter(BankDetail.account_number == bank_detail.account_number).first()
+    if existing_bank:
+       raise HTTPException(status_code=400, detail=f"Account number ({bank_detail.account_number}) already exists.") 
+   
+    db_bank_detail = BankDetail(**bank_detail.model_dump())
+    db.add(db_bank_detail)
+    db.commit()
+    db.refresh(db_bank_detail)
+    return db_bank_detail
+
+
+@app.patch("/employeebankdetail/{bankdetail_id}", response_model=readBankDetail)
+def partial_update_employee_bank_detail(
+    bankdetail_id: int,
+    bank_detail: updateBankDetail,
+    db: Session = Depends(get_db),
+    user_email: str = Depends(protected_route)
+):
+    db_bank_detail = db.query(BankDetail).filter(BankDetail.id == bankdetail_id).first()
+    if not db_bank_detail:
+        raise HTTPException(status_code=404, detail="Bank Detail not Found.")
+    update_bank_detail = bank_detail.model_dump(exclude_unset=True)
+    for key, value in update_bank_detail.items():
+        setattr(db_bank_detail, key, value)
+    db.commit()
+    db.refresh(db_bank_detail)
+    return db_bank_detail
+
+@app.delete("/employeebankdetail/{bankdetail_id}",status_code=204)
+def deactivate_bank_detail(bankdetail_id : int, db:Session=Depends(get_db), user_emil:str = Depends(protected_route) ):
+    db_bank_detail = db.query(BankDetail).filter(BankDetail.is_active == True, BankDetail.id == bankdetail_id).first()
+    if not db_bank_detail:
+        raise HTTPException(status_code=404, detail=f"Bank Detail not Found.")
+    db_bank_detail.is_active = False
+    db.commit()
+    db.refresh(db_bank_detail)
+    return None
+
+######################## employee Document detail #################
+
+class baseDocument(BaseModel):
+    employee_id : int
+    document_type_id : int
+    document_file : str
+    issue_date : date
+    expiry_date: date
+    is_verified: bool
+    
+class readDocument(baseDocument):
+    id:int
+
+    class Config:
+        orm_mode = True
+class createDocument(baseDocument):
+    pass
+
+    class Config:
+        orm_mode = True
+
+class updateDocument(BaseModel):
+    employee_id : Optional[int]= None
+    document_type_id : Optional[int] = None
+    document_file : Optional[str] =None
+    issue_date : Optional[date] = None
+    expiry_date: Optional[date] = None
+    is_verified : Optional[bool] =None
+    
+    class Config:
+        orm_mode= True
+        
+@app.get("/employeedocuments", response_model=list[readDocument])
+def employee_documents(db:Session = Depends(get_db), user_email:str =Depends(protected_route)):
+    db_document = db.query(Document).filter(Document.is_active == True).order_by(Document.created_at.desc())
+    return db_document
+
+@app.get("/employeedocument/{document_id}", response_model= readDocument)
+def employee_document(document_id:int, db: Session=Depends(get_db), user_email:str = Depends(protected_route)):
+    db_document = db.query(Document).filter(Document.is_active == True, Document.id == document_id).first()
+    if not db_document:
+        raise HTTPException(status_code=404,detail= "Document Not Found.")
+    return db_document
+
+@app.post("/employeedocument",status_code=201, response_model= readDocument)
+def create_employee_document(document: createDocument, db:Session=Depends(get_db), user_email :str = Depends(protected_route)):
+    db_document = Document(**document.model_dump())
+    db.add(db_document)
+    db.commit
+    db.refresh(db_document)
+    return db_document
+
+@app.patch("/employeedocument/{document_id}", response_model= readDocument)
+def partial_update_employee_document(document_id:int , document: updateDocument, db:Session=Depends(get_db), user_email:str = Depends(protected_route)):
+    db_document = db.query(Document).filter(Document.is_active == True, Document.id == document_id).first()
+    if not db_document:
+        raise HTTPException(status_code= 404, detail= "Document not Found.")
+    updated_document = document.model_dump(exclude_unset=True)
+    for key,value in updated_document:
+        setattr(db_document,key,value)
+    db.commit()
+    db.refresh(db_document)
+    return db_document
+
+@app.delete("/employeedocument/{document_id}", status_code=204)
+def deactivate_employee_document(document_id:int, db:Session=Depends(get_db),user_email:str = Depends(protected_route)):
+    db_document = db.query(Document).filter(Document.is_active == True, Document.id == document_id).first()
+    if not db_document:
+        raise HTTPException(status_code=404, detail="Document Not Found.")
+    db_document.is_active == False
+    db.commit
+    db.refresh(db_document)
+    return None
+#######################  WorkExperience ####################
+
+        
+    
+    
+    
+    
