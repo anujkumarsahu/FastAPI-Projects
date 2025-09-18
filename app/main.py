@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Request
+from fastapi import FastAPI, Depends, HTTPException, status, Request,UploadFile, File
 from datetime import date, datetime,timedelta
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -1379,8 +1379,160 @@ def deactivate_employee_document(document_id:int, db:Session=Depends(get_db),use
     return None
 #######################  WorkExperience ####################
 
-        
+class baseWorkExperience(BaseModel):
+    employee_id : int
+    company_name :str
+    designation : str
+    start_date : date
+    end_date : date
+    responsibilities : str
     
+class readWorkExperience(baseBankDetail):
+    id: int
+    class Config:
+        orm_mode=True
     
+class createWorkExperience(baseBankDetail):
+    pass
+    class Config:
+        orm_mode=True
+
+class updateWorkExperience(BaseModel):
+    employee_id : Optional[int]=None
+    company_name: Optional[str]=None
+    designation : Optional[str]=None
+    start_date: Optional[date]=None
+    end_date: Optional[date]=None
+    responsibilities:Optional[str]=None
+    class Config:
+        orm_mode = True
+
+@app.get("/employeeworkexperience", response_model=list[readWorkExperience])
+def read_employee_work_experience(db:Session=Depends(get_db), user_email:str=Depends(protected_route)):
+    db_work_experience = db.query(WorkExperience).filter(WorkExperience.is_active == True).order_by(WorkExperience.start_date.desc()).all()
+    return db_work_experience
+
+@app.get("/employeeworkexperience/{workexperience_id}", response_model= readWorkExperience)
+def employee_work_experience(workexperience_id:int, db:Session=Depends(get_db), user_email:str=Depends(protected_route)):
+    db_work_experience = db.query(WorkExperience).filter(WorkExperience.id == workexperience_id,WorkExperience.is_active == True).first()
+    if not db_work_experience:
+        raise HTTPException(status_code=400, detail="Employee Work Experience Not Found.")
+    return db_work_experience
+
+@app.post("/employeeworkexperience", status_code=201, response_model=readWorkExperience)
+def create_employee_work_experience(workexperience : createWorkExperience, db:Session=Depends(get_db), user_email:str=Depends(protected_route)):
+    db_employeeworkexperience = WorkExperience(**workexperience.model_dump())
+    db.add(db_employeeworkexperience)
+    db.commit()
+    db.refresh(db_employeeworkexperience)
+    return db_employeeworkexperience
+
+@app.patch("/employeeworkexperience/{workexperience_id}", response_model= readWorkExperience)
+def partial_update_employee_work_exprience(workexperience_id:int, workexperience:updateWorkExperience, db:Session=Depends(get_db),user_email:str=Depends(protected_route)):
+    db_employee_work_experience = db.query(WorkExperience).filter(WorkExperience.id == workexperience_id, WorkExperience.is_active == True)
+    if not db_employee_work_experience:
+        raise HTTPException(status_code=400, detail="Work Experience Details Not Found." )
+    
+    for key, value in db_employee_work_experience:
+        setattr(db_employee_work_experience,key, value )
+    db.commit()
+    db.refresh(db_employee_work_experience)
+    return db_employee_work_experience
+
+@app.delete("/employeeworkexperience/{workexperience_id}",status_code=204)
+def delete_employee_work_experience(workexperience_id:int, db:Session=Depends(get_db), user_email:str =Depends(protected_route)):
+    db_employee_work_experience = db.query(WorkExperience).filter(WorkExperience.id == workexperience_id, WorkExperience.is_active == True)
+    if not db_employee_work_experience:
+        raise HTTPException(status_code=400, detail="Work Experience Details Not Found." )
+    db_employee_work_experience.is_activet == False
+    
+    db.commit()
+    db.refresh(db_employee_work_experience)
+    return {'details': "Data Deleted Sucessfully."}
+
+    
+class baseEducation(BaseModel):
+   employee_id:int
+   institution_name :str
+   degree :str
+   field_of_study:str
+   start_date:date 
+   end_date :date
+   grade:str
+   grade_value:float
+   description: str
+   IP:str
+   
+class readEducation(baseEducation):
+    id:int
+    class Config:
+        orm_mode=True
+
+class createEducation(baseEducation):
+    pass
+
+    class Config:
+        orm_mode= True
+
+class updateEducation(BaseModel):
+    employee_id:Optional[int]=None
+    institution_name :Optional[str]=None
+    degree :Optional[str]= None
+    field_of_study:Optional[str]= None
+    start_date:Optional[date]= None 
+    end_date :Optional[date]= None
+    grade:Optional[str]= None
+    grade_value:Optional[float]= None
+    description: Optional[str]= None
+    IP:Optional[str]= None
+
+    class Config:
+       orm_mode = True
+       
+
+@app.get("/employeeEducation", response_model=list[readEducation])
+def read_employee_Education(db:Session=Depends(get_db), user_email:str=Depends(protected_route)):
+    db_Education = db.query(Education).filter(Education.is_active == True).order_by(Education.start_date.desc()).all()
+    return db_Education
+
+@app.get("/employeeEducation/{education_id}", response_model= readEducation)
+def employee_Education(education_id:int, db:Session=Depends(get_db), user_email:str=Depends(protected_route)):
+    db_Education = db.query(Education).filter(Education.id == education_id,Education.is_active == True).first()
+    if not db_Education:
+        raise HTTPException(status_code=400, detail="Employee Work Experience Not Found.")
+    return db_Education
+
+@app.post("/employeeEducation", status_code=201, response_model=readEducation)
+def create_employee_Education(education : createEducation, db:Session=Depends(get_db), user_email:str=Depends(protected_route)):
+    db_employeeEducation = Education(**education.model_dump())
+    db.add(db_employeeEducation)
+    db.commit()
+    db.refresh(db_employeeEducation)
+    return db_employeeEducation
+
+@app.patch("/employeeEducation/{education_id}", response_model= readEducation)
+def partial_update_employee_work_exprience(education_id:int, Education:updateEducation, db:Session=Depends(get_db),user_email:str=Depends(protected_route)):
+    db_employee_Education = db.query(Education).filter(Education.id == education_id, Education.is_active == True)
+    if not db_employee_Education:
+        raise HTTPException(status_code=400, detail="Work Experience Details Not Found." )
+    
+    for key, value in db_employee_Education:
+        setattr(db_employee_Education,key, value )
+    db.commit()
+    db.refresh(db_employee_Education)
+    return db_employee_Education
+
+@app.delete("/employeeEducation/{education_id}",status_code=204)
+def delete_employee_Education(education_id:int, db:Session=Depends(get_db), user_email:str =Depends(protected_route)):
+    db_employee_Education = db.query(Education).filter(Education.id == education_id, Education.is_active == True)
+    if not db_employee_Education:
+        raise HTTPException(status_code=400, detail="Work Experience Details Not Found." )
+    db_employee_Education.is_activet == False
+    
+    db.commit()
+    db.refresh(db_employee_Education)
+    return {'details': "Data Deleted Sucessfully."} 
+
+   
     
     
